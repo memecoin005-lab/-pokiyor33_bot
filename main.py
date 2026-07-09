@@ -1,7 +1,7 @@
 """
 @pokiyor33_bot - Multi-purpose Telegram Bot
-Deployed on Railway with GitHub integration
-FIXED: Environment variable handling
+FIXED: Environment variable loading issue
+DEPLOY: Railway + GitHub
 """
 
 import os
@@ -11,13 +11,39 @@ import logging
 import random
 from typing import Dict, Any
 
-# Load environment variables from .env file if it exists (for local development)
+# ===================== LOAD ENVIRONMENT VARIABLES FIRST =====================
+# Try to load .env file if it exists (local development)
 try:
     from dotenv import load_dotenv
     load_dotenv()
+    print("✅ .env file loaded (if exists)")
 except ImportError:
-    pass
+    print("ℹ️ python-dotenv not installed, using system environment")
 
+# Get token - THIS MUST COME AFTER load_dotenv()
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+
+# Check if token exists - if not, exit with clear message
+if TELEGRAM_TOKEN is None:
+    print("\n" + "="*70)
+    print("❌ ERROR: TELEGRAM_TOKEN environment variable not found!")
+    print("="*70)
+    print("\n📌 TO FIX THIS ON RAILWAY:")
+    print("  1. Go to your Railway project dashboard")
+    print("  2. Click on your deployed service")
+    print("  3. Click the 'Variables' tab")
+    print("  4. Add a new variable:")
+    print("     📝 Key:   TELEGRAM_TOKEN")
+    print("     📝 Value: <your_bot_token_from_BotFather>")
+    print("  5. Click 'Deploy' to restart\n")
+    print("📌 TO FIX LOCALLY:")
+    print("  1. Create a .env file in the project root")
+    print("  2. Add: TELEGRAM_TOKEN=your_bot_token")
+    print("  3. Run: python main.py\n")
+    print("="*70)
+    sys.exit(1)
+
+# Now we have the token, proceed with imports that need it
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -37,63 +63,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ===================== CONFIGURATION =====================
-
-# Try multiple ways to get the token
-TOKEN = None
-
-# Method 1: Direct from environment (Railway, Heroku, etc.)
-TOKEN = os.environ.get('TELEGRAM_TOKEN')
-
-# Method 2: From .env file (local development)
-if not TOKEN:
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-        TOKEN = os.environ.get('TELEGRAM_TOKEN')
-        if TOKEN:
-            logger.info("✅ Token loaded from .env file")
-    except:
-        pass
-
-# Method 3: Hardcoded fallback (ONLY FOR TESTING - REMOVE IN PRODUCTION)
-# WARNING: Never hardcode tokens in production!
-if not TOKEN:
-    # This is for demonstration only - replace with your actual token for testing
-    # TOKEN = "YOUR_BOT_TOKEN_HERE"
-    pass
-
-# Check if token is set
-if not TOKEN:
-    logger.error("=" * 60)
-    logger.error("❌ TELEGRAM_TOKEN environment variable not set!")
-    logger.error("=" * 60)
-    logger.error("")
-    logger.error("To fix this issue:")
-    logger.error("")
-    logger.error("Option 1: Set on Railway (Recommended)")
-    logger.error("  1. Go to your Railway project dashboard")
-    logger.error("  2. Click on your deployed service")
-    logger.error("  3. Go to the 'Variables' tab")
-    logger.error("  4. Add a new variable:")
-    logger.error("     Key:   TELEGRAM_TOKEN")
-    logger.error("     Value: YOUR_BOT_TOKEN_FROM_BOTFATHER")
-    logger.error("  5. Click 'Deploy' to restart")
-    logger.error("")
-    logger.error("Option 2: Set in .env file (Local Development)")
-    logger.error("  1. Create a .env file in the project root")
-    logger.error("  2. Add: TELEGRAM_TOKEN=your_bot_token")
-    logger.error("  3. Run: python main.py")
-    logger.error("")
-    logger.error("Option 3: Set as environment variable")
-    logger.error("  export TELEGRAM_TOKEN='your_bot_token'")
-    logger.error("")
-    logger.error("=" * 60)
-    sys.exit(1)
-
-logger.info(f"✅ Bot token loaded successfully")
-logger.info(f"🔑 Token starts with: {TOKEN[:10]}...")
-logger.info(f"📏 Token length: {len(TOKEN)} characters")
+logger.info("="*60)
+logger.info(f"✅ TELEGRAM_TOKEN loaded successfully")
+logger.info(f"🔑 Token starts with: {TELEGRAM_TOKEN[:10]}...")
+logger.info(f"📏 Token length: {len(TELEGRAM_TOKEN)} characters")
+logger.info("="*60)
 
 # Conversation states
 WAITING_FOR_URL = 1
@@ -105,11 +79,11 @@ WAITING_FOR_TEXT = 3
 def is_valid_url(url: str) -> bool:
     """Check if the URL is valid"""
     url_pattern = re.compile(
-        r'^https?://'  # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
-        r'localhost|'  # localhost...
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
-        r'(?::\d+)?'  # optional port
+        r'^https?://'
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'
+        r'localhost|'
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+        r'(?::\d+)?'
         r'(?:/?|[/?]\S+)$', re.IGNORECASE
     )
     return re.match(url_pattern, url) is not None
@@ -133,11 +107,8 @@ async def shorten_url_api(url: str) -> Dict[str, Any]:
 async def generate_image_api(prompt: str) -> str:
     """Generate image using pollinations.ai API"""
     try:
-        # Format the prompt for URL
         encoded_prompt = requests.utils.quote(prompt)
         seed = random.randint(1, 1000000)
-        
-        # Generate image URL
         image_url = (
             f"https://image.pollinations.ai/prompt/{encoded_prompt}"
             f"?width=1024&height=768"
@@ -166,7 +137,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📊 `/count` - Count words and characters\n"
         f"💰 `/airtime` - Airtime to cash conversion info\n"
         f"❓ `/help` - Show all available commands\n\n"
-        f"*Select an option below or type a command:*"
+        f"*Select an option below:*"
     )
     
     keyboard = [
@@ -189,21 +160,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "📚 *Available Commands*\n\n"
         "`/start` - Show main menu\n"
+        "`/help` - Show this message\n"
         "`/shorten` - Shorten a URL\n"
         "`/generate` - Generate AI image\n"
         "`/count` - Count words & characters\n"
         "`/airtime` - Airtime conversion info\n"
-        "`/help` - Show this message\n\n"
-        "🤖 *Features Explained*\n"
-        "• *URL Shortener* - Uses spoo.me API (free, no registration)\n"
-        "• *AI Image Generator* - Uses pollinations.ai (free, unlimited)\n"
-        "• *Word Counter* - Counts words, characters, sentences\n"
-        "• *Airtime Info* - Reliable conversion apps for Nigeria\n\n"
-        "📌 *How to use*\n"
-        "1. Type a command (e.g., /shorten)\n"
-        "2. Follow the instructions\n"
-        "3. Get your result instantly!\n\n"
-        "💡 *Tip:* You can also click the buttons below to start!"
+        "`/cancel` - Cancel current operation\n\n"
+        "🤖 *Features:*\n"
+        "• URL Shortener (spoo.me)\n"
+        "• AI Image Generator (pollinations.ai)\n"
+        "• Word & Character Counter\n"
+        "• Airtime Conversion Info (Nigeria)"
     )
     
     keyboard = [
@@ -227,7 +194,7 @@ async def shorten_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🔗 *URL Shortener*\n\n"
         "Please send me the URL you want to shorten.\n\n"
-        "*Example:* `https://www.example.com/very-long-url-with-many-parameters`\n\n"
+        "*Example:* `https://www.example.com/very-long-url`\n\n"
         "*(Send /cancel to cancel)*",
         parse_mode='Markdown'
     )
@@ -237,25 +204,20 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle URL input for shortening"""
     url = update.message.text.strip()
     
-    # Check if user wants to cancel
     if url.lower() == '/cancel':
         await update.message.reply_text("❌ Operation cancelled.")
         return ConversationHandler.END
     
-    # Validate URL
     if not is_valid_url(url):
         await update.message.reply_text(
             "❌ *Invalid URL*\n\n"
-            "Please send a valid URL starting with `http://` or `https://`\n"
-            "Example: `https://www.google.com`",
+            "Please send a valid URL starting with `http://` or `https://`",
             parse_mode='Markdown'
         )
         return WAITING_FOR_URL
     
-    # Show processing message
     processing_msg = await update.message.reply_text("⏳ Shortening URL...")
     
-    # Call the API
     result = await shorten_url_api(url)
     
     if result and result.get('short_url'):
@@ -267,12 +229,10 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ *URL Shortened Successfully!*\n\n"
             f"🔗 *Original:*\n`{url}`\n\n"
             f"✂️ *Shortened:*\n`{short_url}`\n\n"
-            f"📊 *Stats:* {clicks} total clicks"
+            f"📊 *Total Clicks:* {clicks}"
         )
         
-        # Add a button to copy the link
         keyboard = [[
-            InlineKeyboardButton("📋 Copy Link", callback_data=f'copy_{short_url}'),
             InlineKeyboardButton("🔗 Open Link", url=short_url)
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -287,8 +247,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await processing_msg.delete()
         await update.message.reply_text(
             "❌ *Failed to shorten URL*\n\n"
-            "The service might be temporarily unavailable.\n"
-            "Please try again in a few minutes.",
+            "The service might be temporarily unavailable. Please try again.",
             parse_mode='Markdown'
         )
     
@@ -314,12 +273,10 @@ async def handle_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle image generation prompt"""
     prompt = update.message.text.strip()
     
-    # Check if user wants to cancel
     if prompt.lower() == '/cancel':
         await update.message.reply_text("❌ Operation cancelled.")
         return ConversationHandler.END
     
-    # Validate prompt
     if len(prompt) < 3:
         await update.message.reply_text(
             "❌ *Prompt too short*\n\n"
@@ -328,21 +285,17 @@ async def handle_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return WAITING_FOR_PROMPT
     
-    # Show processing message
     processing_msg = await update.message.reply_text("🎨 Generating your image... This may take a few seconds.")
     
-    # Generate image
     image_url = await generate_image_api(prompt)
     
     if image_url:
         try:
-            # Send the generated image
             await update.message.reply_photo(
                 photo=image_url,
                 caption=(
                     f"🖼️ *AI Generated Image*\n\n"
-                    f"📝 *Prompt:* {prompt}\n\n"
-                    f"⚡ *Note:* Images are generated using AI and may not be perfect."
+                    f"📝 *Prompt:* {prompt}"
                 ),
                 parse_mode='Markdown'
             )
@@ -357,8 +310,7 @@ async def handle_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(
             "❌ *Failed to generate image*\n\n"
-            "The service might be temporarily unavailable.\n"
-            "Please try again in a few minutes.",
+            "The service might be temporarily unavailable. Please try again.",
             parse_mode='Markdown'
         )
     
@@ -382,7 +334,6 @@ async def handle_count_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text for counting"""
     text = update.message.text.strip()
     
-    # Check if user wants to cancel
     if text.lower() == '/cancel':
         await update.message.reply_text("❌ Operation cancelled.")
         return ConversationHandler.END
@@ -401,30 +352,15 @@ async def handle_count_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     char_without_spaces = len(text.replace(' ', '').replace('\n', ''))
     sentence_count = text.count('.') + text.count('!') + text.count('?')
     
-    # If no sentence ending punctuation, count as 1 sentence
     if sentence_count == 0 and word_count > 0:
         sentence_count = 1
-    
-    # Count paragraphs
-    paragraphs = [p for p in text.split('\n') if p.strip()]
-    paragraph_count = len(paragraphs)
-    
-    # Average word length
-    avg_word_length = char_without_spaces / word_count if word_count > 0 else 0
-    
-    # Reading time (approx 200 words per minute)
-    reading_time = round(word_count / 200, 1)
     
     result = (
         f"📊 *Text Analysis Results*\n\n"
         f"📝 *Words:* `{word_count}`\n"
         f"🔤 *Characters (with spaces):* `{char_with_spaces}`\n"
         f"🔠 *Characters (without spaces):* `{char_without_spaces}`\n"
-        f"📄 *Sentences:* `{sentence_count}`\n"
-        f"📃 *Paragraphs:* `{paragraph_count}`\n"
-        f"📏 *Avg word length:* `{avg_word_length:.1f}` characters\n"
-        f"⏱️ *Reading time:* `{reading_time}` minute(s)\n\n"
-        f"💡 *Tip:* Longer texts are analyzed more accurately!"
+        f"📄 *Sentences:* `{sentence_count}`"
     )
     
     await update.message.reply_text(result, parse_mode='Markdown')
@@ -440,13 +376,11 @@ async def airtime_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📱 *Tingtel App*\n"
         "• Fast airtime to cash conversion\n"
         "• Pay utility bills\n"
-        "• Fund mobile money wallets (MTN MoMo, Airtel SmartCash)\n"
-        "• Available on Play Store and App Store\n\n"
+        "• Fund mobile money wallets (MTN MoMo, Airtel SmartCash)\n\n"
         "📱 *RocketPay*\n"
         "• Airtime-to-cash conversion\n"
         "• Bill payments & money transfers\n"
-        "• Gift card trading\n"
-        "• Available on Play Store\n\n"
+        "• Gift card trading\n\n"
         "📱 *MinatPay*\n"
         "• Convert airtime to cash\n"
         "• Buy data bundles\n"
@@ -454,15 +388,12 @@ async def airtime_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚠️ *Important Notes:*\n"
         "• These apps typically charge a convenience fee (5-15%)\n"
         "• Always verify current rates before transacting\n"
-        "• Rates may vary by network provider\n"
-        "• Only use official app stores to download"
+        "• Rates may vary by network provider"
     )
     
-    keyboard = [
-        [InlineKeyboardButton("📱 Download Tingtel", url="https://play.google.com/store/apps/details?id=com.tingtel")],
-        [InlineKeyboardButton("📱 Download RocketPay", url="https://play.google.com/store/apps/details?id=com.rocketpay")],
-        [InlineKeyboardButton("💰 Check Current Rates", callback_data='check_rates')]
-    ]
+    keyboard = [[
+        InlineKeyboardButton("💰 Check Current Rates", callback_data='check_rates')
+    ]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
@@ -511,14 +442,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ *Note:* Rates change daily. Check the apps for current rates.",
             parse_mode='Markdown'
         )
-    elif data.startswith('copy_'):
-        # Handle copy link button
-        short_url = data.replace('copy_', '')
-        await query.message.reply_text(
-            f"📋 *Copy this link:*\n`{short_url}`\n\n"
-            "You can copy it manually from this message.",
-            parse_mode='Markdown'
-        )
 
 # ===================== UNKNOWN COMMAND HANDLER =====================
 
@@ -545,27 +468,17 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
-# ===================== HEALTH CHECK ENDPOINT =====================
-
-# This is for Railway's health checks
-async def health_check():
-    """Simple health check function"""
-    return {"status": "healthy", "timestamp": "2026-07-09"}
-
 # ===================== MAIN FUNCTION =====================
 
 def main():
     """Start the bot"""
-    logger.info("=" * 60)
+    logger.info("="*60)
     logger.info("🚀 Starting @pokiyor33_bot...")
-    logger.info("=" * 60)
-    logger.info(f"✅ Bot token loaded: {TOKEN[:10]}...{TOKEN[-5:]}")
-    logger.info(f"📱 Bot username: @pokiyor33_bot")
-    logger.info("=" * 60)
+    logger.info("="*60)
     
     try:
         # Create the application
-        app = ApplicationBuilder().token(TOKEN).build()
+        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
         logger.info("✅ Application created successfully")
         
         # ===== CONVERSATION HANDLERS =====
@@ -621,20 +534,19 @@ def main():
         
         # ===== START THE BOT =====
         logger.info("✅ Bot is running! Listening for updates...")
-        logger.info("=" * 60)
         logger.info("📱 Your bot is live: https://t.me/pokiyor33_bot")
-        logger.info("=" * 60)
+        logger.info("="*60)
         
         app.run_polling(allowed_updates=Update.ALL_TYPES)
         
     except Exception as e:
         logger.error(f"❌ Failed to start bot: {e}")
-        logger.error("=" * 60)
+        logger.error("="*60)
         logger.error("Common issues and solutions:")
         logger.error("1. Invalid token - Get a new one from @BotFather")
         logger.error("2. Network issues - Check your internet connection")
         logger.error("3. Missing dependencies - Run: pip install -r requirements.txt")
-        logger.error("=" * 60)
+        logger.error("="*60)
         sys.exit(1)
 
 if __name__ == '__main__':
