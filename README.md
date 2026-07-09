@@ -23,23 +23,25 @@ A powerful multi-purpose Telegram bot with URL shortening, AI image generation, 
 | `/airtime` | Airtime conversion info |
 | `/cancel` | Cancel current operation |
 
-## 🛠️ Deployment
+## 🛠️ Deployment on Railway
 
-### Prerequisites
-- Python 3.9+
-- Telegram Bot Token (from @BotFather)
-- Railway account
-- GitHub account
+### Step 1: Set Environment Variable
 
-### Environment Variables
-- `TELEGRAM_TOKEN`: Your bot token from @BotFather
+1. Go to your Railway project dashboard
+2. Click on your deployed service
+3. Go to the **Variables** tab
+4. Add a new variable:
+   - **Key:** `TELEGRAM_TOKEN`
+   - **Value:** `your_bot_token_from_botfather`
+5. Click **Deploy** to restart
 
-### Deploy on Railway
-1. Fork this repository on GitHub
-2. Create a new project on Railway
-3. Connect your GitHub repository
-4. Add `TELEGRAM_TOKEN` as an environment variable
-5. Deploy!
+### Step 2: Deploy from GitHub
+
+1. Push your code to GitHub
+2. On Railway, click **New Project**
+3. Select **Deploy from GitHub repo**
+4. Choose your repository
+5. Wait for build and deployment
 
 ## 📦 Local Development
 
@@ -56,7 +58,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Create .env file
-echo "TELEGRAM_TOKEN=your_bot_token" > .env
+cp .env.example .env
+# Edit .env and add your TELEGRAM_TOKEN
 
 # Run the bot
 python main.py
