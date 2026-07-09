@@ -1,17 +1,24 @@
 """
 @pokiyor33_bot - Multi-purpose Telegram Bot
 Deployed on Railway with GitHub integration
+FIXED: Environment variable handling
 """
 
 import os
+import sys
 import re
 import logging
 import random
-from datetime import datetime
 from typing import Dict, Any
 
+# Load environment variables from .env file if it exists (for local development)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import requests
-import aiohttp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -31,10 +38,62 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ===================== CONFIGURATION =====================
+
+# Try multiple ways to get the token
+TOKEN = None
+
+# Method 1: Direct from environment (Railway, Heroku, etc.)
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
+
+# Method 2: From .env file (local development)
 if not TOKEN:
-    logger.error("TELEGRAM_TOKEN environment variable not set!")
-    raise ValueError("TELEGRAM_TOKEN environment variable not set!")
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        TOKEN = os.environ.get('TELEGRAM_TOKEN')
+        if TOKEN:
+            logger.info("✅ Token loaded from .env file")
+    except:
+        pass
+
+# Method 3: Hardcoded fallback (ONLY FOR TESTING - REMOVE IN PRODUCTION)
+# WARNING: Never hardcode tokens in production!
+if not TOKEN:
+    # This is for demonstration only - replace with your actual token for testing
+    # TOKEN = "YOUR_BOT_TOKEN_HERE"
+    pass
+
+# Check if token is set
+if not TOKEN:
+    logger.error("=" * 60)
+    logger.error("❌ TELEGRAM_TOKEN environment variable not set!")
+    logger.error("=" * 60)
+    logger.error("")
+    logger.error("To fix this issue:")
+    logger.error("")
+    logger.error("Option 1: Set on Railway (Recommended)")
+    logger.error("  1. Go to your Railway project dashboard")
+    logger.error("  2. Click on your deployed service")
+    logger.error("  3. Go to the 'Variables' tab")
+    logger.error("  4. Add a new variable:")
+    logger.error("     Key:   TELEGRAM_TOKEN")
+    logger.error("     Value: YOUR_BOT_TOKEN_FROM_BOTFATHER")
+    logger.error("  5. Click 'Deploy' to restart")
+    logger.error("")
+    logger.error("Option 2: Set in .env file (Local Development)")
+    logger.error("  1. Create a .env file in the project root")
+    logger.error("  2. Add: TELEGRAM_TOKEN=your_bot_token")
+    logger.error("  3. Run: python main.py")
+    logger.error("")
+    logger.error("Option 3: Set as environment variable")
+    logger.error("  export TELEGRAM_TOKEN='your_bot_token'")
+    logger.error("")
+    logger.error("=" * 60)
+    sys.exit(1)
+
+logger.info(f"✅ Bot token loaded successfully")
+logger.info(f"🔑 Token starts with: {TOKEN[:10]}...")
+logger.info(f"📏 Token length: {len(TOKEN)} characters")
 
 # Conversation states
 WAITING_FOR_URL = 1
@@ -486,70 +545,97 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
+# ===================== HEALTH CHECK ENDPOINT =====================
+
+# This is for Railway's health checks
+async def health_check():
+    """Simple health check function"""
+    return {"status": "healthy", "timestamp": "2026-07-09"}
+
 # ===================== MAIN FUNCTION =====================
 
 def main():
     """Start the bot"""
+    logger.info("=" * 60)
     logger.info("🚀 Starting @pokiyor33_bot...")
-    logger.info(f"✅ Bot token: {TOKEN[:10]}...{TOKEN[-5:]}")
+    logger.info("=" * 60)
+    logger.info(f"✅ Bot token loaded: {TOKEN[:10]}...{TOKEN[-5:]}")
+    logger.info(f"📱 Bot username: @pokiyor33_bot")
+    logger.info("=" * 60)
     
-    # Create the application
-    app = ApplicationBuilder().token(TOKEN).build()
-    
-    # ===== CONVERSATION HANDLERS =====
-    
-    # URL shortening conversation
-    url_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('shorten', shorten_command)],
-        states={
-            WAITING_FOR_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url)],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-    )
-    
-    # Image generation conversation
-    image_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('generate', generate_command)],
-        states={
-            WAITING_FOR_PROMPT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_prompt)],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-    )
-    
-    # Word counter conversation
-    count_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('count', count_command)],
-        states={
-            WAITING_FOR_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_count_text)],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-    )
-    
-    # ===== ADD HANDLERS =====
-    
-    # Command handlers
-    app.add_handler(CommandHandler('start', start))
-    app.add_handler(CommandHandler('help', help_command))
-    app.add_handler(CommandHandler('airtime', airtime_command))
-    app.add_handler(CommandHandler('cancel', cancel))
-    
-    # Conversation handlers
-    app.add_handler(url_conv_handler)
-    app.add_handler(image_conv_handler)
-    app.add_handler(count_conv_handler)
-    
-    # Callback query handler
-    app.add_handler(CallbackQueryHandler(button_callback))
-    
-    # Unknown command handler
-    app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-    
-    # Error handler
-    app.add_error_handler(error_handler)
-    
-    # ===== START THE BOT =====
-    logger.info("✅ Bot is running! Listening for updates...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        # Create the application
+        app = ApplicationBuilder().token(TOKEN).build()
+        logger.info("✅ Application created successfully")
+        
+        # ===== CONVERSATION HANDLERS =====
+        
+        # URL shortening conversation
+        url_conv_handler = ConversationHandler(
+            entry_points=[CommandHandler('shorten', shorten_command)],
+            states={
+                WAITING_FOR_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url)],
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+        )
+        
+        # Image generation conversation
+        image_conv_handler = ConversationHandler(
+            entry_points=[CommandHandler('generate', generate_command)],
+            states={
+                WAITING_FOR_PROMPT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_prompt)],
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+        )
+        
+        # Word counter conversation
+        count_conv_handler = ConversationHandler(
+            entry_points=[CommandHandler('count', count_command)],
+            states={
+                WAITING_FOR_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_count_text)],
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+        )
+        
+        # ===== ADD HANDLERS =====
+        
+        # Command handlers
+        app.add_handler(CommandHandler('start', start))
+        app.add_handler(CommandHandler('help', help_command))
+        app.add_handler(CommandHandler('airtime', airtime_command))
+        app.add_handler(CommandHandler('cancel', cancel))
+        
+        # Conversation handlers
+        app.add_handler(url_conv_handler)
+        app.add_handler(image_conv_handler)
+        app.add_handler(count_conv_handler)
+        
+        # Callback query handler
+        app.add_handler(CallbackQueryHandler(button_callback))
+        
+        # Unknown command handler
+        app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+        
+        # Error handler
+        app.add_error_handler(error_handler)
+        
+        # ===== START THE BOT =====
+        logger.info("✅ Bot is running! Listening for updates...")
+        logger.info("=" * 60)
+        logger.info("📱 Your bot is live: https://t.me/pokiyor33_bot")
+        logger.info("=" * 60)
+        
+        app.run_polling(allowed_updates=Update.ALL_TYPES)
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to start bot: {e}")
+        logger.error("=" * 60)
+        logger.error("Common issues and solutions:")
+        logger.error("1. Invalid token - Get a new one from @BotFather")
+        logger.error("2. Network issues - Check your internet connection")
+        logger.error("3. Missing dependencies - Run: pip install -r requirements.txt")
+        logger.error("=" * 60)
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
